@@ -82,14 +82,13 @@ pipeline {
       // --- Publicación Coverage ---
       recordCoverage tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]
 
-      // --- Publicación Warnings NG ---
-      // Flake8
+      // --- Publicación Warnings NG (Flake8) ---
       recordIssues tools: [flake8(pattern: 'flake8-report.txt')]
-      // Bandit
-      recordIssues tools: [bandit(pattern: 'bandit-report.json')]
 
       // --- Performance ---
       perfReport sourceDataFiles: 'test\\jmeter\\results.jtl'
+
+      // --- Archivos ---
       archiveArtifacts artifacts: 'test\\jmeter\\results.jtl, coverage.xml, flake8-report.txt, bandit-report.json, unit-results.xml, rest-results.xml', allowEmptyArchive: false
 
       // --- Limpieza procesos ---
