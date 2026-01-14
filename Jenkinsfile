@@ -47,10 +47,10 @@ pipeline {
     }
   }
 
-  post {
-    always {
-      bat "for /f \"tokens=5\" %%%%a in ('netstat -aon ^| find \":5000\" ^| find \"LISTENING\"') do taskkill /F /PID %%%%a"
-      bat "for /f \"tokens=5\" %%%%a in ('netstat -aon ^| find \":9090\" ^| find \"LISTENING\"') do taskkill /F /PID %%%%a"
-    }
-  }
+    post {
+      always {
+        bat 'cmd /c for /f "tokens=5" %a in (\'netstat -aon ^| find ":5000" ^| find "LISTENING"\') do taskkill /F /PID %a'
+        bat 'cmd /c for /f "tokens=5" %a in (\'netstat -aon ^| find ":9090" ^| find "LISTENING"\') do taskkill /F /PID %a'
+      }
+   }
 }
