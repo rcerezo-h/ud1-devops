@@ -3,6 +3,7 @@ pipeline {
 
   environment {
     PYTHON = 'C:\\Users\\tmt-1\\AppData\\Local\\Python\\bin\\python.exe'
+    JMETER = 'C:\\jmeter\\bin\\jmeter.bat'
   }
 
   stages {
@@ -34,7 +35,7 @@ pipeline {
 
     stage('Start API (5000)') {
       steps {
-        bat "set FLASK_APP=app.api:api_application&& start \"flask\" /B \"%PYTHON%\" -m flask run --host=127.0.0.1 --port=5000"
+        bat "set FLASK_APP=app.api:api_application && start \"flask\" /B \"%PYTHON%\" -m flask run --host=127.0.0.1 --port=5000"
         sleep time: 5, unit: 'SECONDS'
       }
     }
@@ -45,20 +46,25 @@ pipeline {
         junit 'rest-results.xml'
       }
     }
+
+    stage('Performance (JMeter)') {
+      steps {
+        bat "\"%JMETER%\" -n -t test\\jmeter\\test-plan.jmx -l test\\jmeter\\results.jtl"
+      }
+    }
   }
 
-post {
-  always {
-    bat '''
+  post {
+    always {
+      perfReport sourceDataFiles: 'test\\jmeter\\results.jtl'
+      archiveArtifacts artifacts: 'test\\jmeter\\results.jtl', allowEmptyArchive: false
+
+      bat '''
 @echo off
-REM Cerrar Flask (puerto 5000) si está escuchando
 for /f "tokens=5" %%a in ('netstat -aon ^| find ":5000" ^| find "LISTENING"') do taskkill /F /PID %%a >NUL 2>NUL
-
-REM Cerrar Wiremock (puerto 9090) si está escuchando
 for /f "tokens=5" %%a in ('netstat -aon ^| find ":9090" ^| find "LISTENING"') do taskkill /F /PID %%a >NUL 2>NUL
-
 exit /b 0
 '''
+    }
   }
-}
 }
