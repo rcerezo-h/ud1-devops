@@ -7,6 +7,7 @@ pipeline {
   }
 
   stages {
+
     stage('Get Code') {
       steps {
         checkout scm
@@ -15,14 +16,36 @@ pipeline {
 
     stage('Install Dependencies') {
       steps {
-        bat "\"%PYTHON%\" -m pip install flask pytest requests"
+        bat "\"%PYTHON%\" -m pip install --upgrade pip"
+        bat "\"%PYTHON%\" -m pip install flask pytest requests pytest-cov flake8 bandit"
       }
     }
 
-    stage('Unit') {
+    stage('Unit + Coverage') {
       steps {
-        bat "\"%PYTHON%\" -m pytest test\\unit --junitxml=unit-results.xml"
+        bat """
+        \"%PYTHON%\" -m pytest test\\unit ^
+          --junitxml=unit-results.xml ^
+          --cov=app ^
+          --cov-report=xml:coverage.xml
+        """
         junit 'unit-results.xml'
+      }
+    }
+
+    stage('Static Analysis (Flake8)') {
+      steps {
+        bat """
+        \"%PYTHON%\" -m flake8 . --format=pylint --output-file=flake8-report.txt || exit /b 0
+        """
+      }
+    }
+
+    stage('Security Scan (Bandit)') {
+      steps {
+        bat """
+        \"%PYTHON%\" -m bandit -r . -f json -o bandit-report.json || exit /b 0
+        """
       }
     }
 
@@ -56,9 +79,20 @@ pipeline {
 
   post {
     always {
-      perfReport sourceDataFiles: 'test\\jmeter\\results.jtl'
-      archiveArtifacts artifacts: 'test\\jmeter\\results.jtl', allowEmptyArchive: false
+      // --- Publicación Coverage ---
+      recordCoverage tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]
 
+      // --- Publicación Warnings NG ---
+      // Flake8
+      recordIssues tools: [flake8(pattern: 'flake8-report.txt')]
+      // Bandit
+      recordIssues tools: [bandit(pattern: 'bandit-report.json')]
+
+      // --- Performance ---
+      perfReport sourceDataFiles: 'test\\jmeter\\results.jtl'
+      archiveArtifacts artifacts: 'test\\jmeter\\results.jtl, coverage.xml, flake8-report.txt, bandit-report.json, unit-results.xml, rest-results.xml', allowEmptyArchive: false
+
+      // --- Limpieza procesos ---
       bat '''
 @echo off
 for /f "tokens=5" %%a in ('netstat -aon ^| find ":5000" ^| find "LISTENING"') do taskkill /F /PID %%a >NUL 2>NUL
