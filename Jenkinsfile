@@ -47,10 +47,18 @@ pipeline {
     }
   }
 
-    post {
-      always {
-        bat 'cmd /c for /f "tokens=5" %a in (\'netstat -aon ^| find ":5000" ^| find "LISTENING"\') do taskkill /F /PID %a'
-        bat 'cmd /c for /f "tokens=5" %a in (\'netstat -aon ^| find ":9090" ^| find "LISTENING"\') do taskkill /F /PID %a'
-      }
-   }
+post {
+  always {
+    bat '''
+@echo off
+REM Cerrar Flask (puerto 5000) si está escuchando
+for /f "tokens=5" %%a in ('netstat -aon ^| find ":5000" ^| find "LISTENING"') do taskkill /F /PID %%a >NUL 2>NUL
+
+REM Cerrar Wiremock (puerto 9090) si está escuchando
+for /f "tokens=5" %%a in ('netstat -aon ^| find ":9090" ^| find "LISTENING"') do taskkill /F /PID %%a >NUL 2>NUL
+
+exit /b 0
+'''
+  }
+}
 }
