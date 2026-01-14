@@ -43,8 +43,9 @@ pipeline {
 
     stage('Security Scan (Bandit)') {
       steps {
+        // Bandit en SARIF (para Warnings-NG)
         bat """
-        \"%PYTHON%\" -m bandit -r . -f json -o bandit-report.json || exit /b 0
+        \"%PYTHON%\" -m bandit -r . -f sarif -o bandit-report.sarif || exit /b 0
         """
       }
     }
@@ -82,14 +83,17 @@ pipeline {
       // --- Publicación Coverage ---
       recordCoverage tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]
 
-      // --- Publicación Warnings NG (Flake8) ---
+      // --- Publicación Warnings NG ---
+      // Flake8
       recordIssues tools: [flake8(pattern: 'flake8-report.txt')]
+      // Bandit (SARIF)
+      recordIssues tools: [sarif(pattern: 'bandit-report.sarif')]
 
       // --- Performance ---
       perfReport sourceDataFiles: 'test\\jmeter\\results.jtl'
 
       // --- Archivos ---
-      archiveArtifacts artifacts: 'test\\jmeter\\results.jtl, coverage.xml, flake8-report.txt, bandit-report.json, unit-results.xml, rest-results.xml', allowEmptyArchive: false
+      archiveArtifacts artifacts: 'test\\jmeter\\results.jtl, coverage.xml, flake8-report.txt, bandit-report.sarif, unit-results.xml, rest-results.xml', allowEmptyArchive: false
 
       // --- Limpieza procesos ---
       bat '''
