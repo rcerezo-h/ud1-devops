@@ -51,7 +51,6 @@ pipeline {
     post {
         always {
             bat 'taskkill /F /IM python.exe || exit 0'
-            bat 'taskkill /F /IM java.exe || exit 0'
         }
     }
 }
