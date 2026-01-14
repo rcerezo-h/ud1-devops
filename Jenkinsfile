@@ -34,8 +34,8 @@ pipeline {
 
     stage('Start API (5000)') {
       steps {
-        bat "set FLASK_APP=app.api:api_application&& start /B \"%PYTHON%\" -m flask run --host=127.0.0.1 --port=5000"
-        sleep time: 3, unit: 'SECONDS'
+        bat "set FLASK_APP=app.api:api_application&& start \"flask\" /B \"%PYTHON%\" -m flask run --host=127.0.0.1 --port=5000"
+        sleep time: 5, unit: 'SECONDS'
       }
     }
 
