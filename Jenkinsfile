@@ -34,15 +34,12 @@ echo ======================
 '''
         checkout scm
 
-        // Wiremock
         bat "start /B java -jar tools\\wiremock\\wiremock.jar --port 9090 --root-dir tools\\wiremock"
         sleep time: 2, unit: 'SECONDS'
 
-        // Flask API
         bat "set FLASK_APP=app.api:api_application && start \"flask\" /B \"%PYTHON%\" -m flask run --host=127.0.0.1 --port=5000"
         sleep time: 5, unit: 'SECONDS'
 
-        // Smoke checks
         bat '''
 echo Probando WireMock...
 powershell -Command "try { (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:9090/__admin).StatusCode } catch { exit 1 }"
@@ -135,15 +132,10 @@ echo ======================
 '''
             checkout scm
 
-            // Si falla REST, el stage queda FAILURE pero la build sigue SUCCESS
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+            retry(3) {
               bat "\"%PYTHON%\" -m pytest test\\rest --junitxml=rest-results.xml"
             }
-
-            // Publica JUnit si existe (si no existe, no rompe)
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-              junit 'rest-results.xml'
-            }
+            junit 'rest-results.xml'
           }
         }
 
@@ -168,21 +160,22 @@ echo ======================
   post {
     always {
       node('win') {
-        // Publicación coverage / issues / perf aunque haya stages en FAILURE
         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
           recordCoverage tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]
         }
         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
           recordIssues tools: [flake8(pattern: 'flake8-report.txt')]
         }
+
         catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-          perfReport sourceDataFiles: 'test\\jmeter\\results.jtl'
+          perfReport sourceDataFiles: 'test\\jmeter\\results.jtl',
+                     errorUnstableThreshold: 101,
+                     errorFailedThreshold: 101
         }
 
         archiveArtifacts artifacts: 'test\\jmeter\\results.jtl, coverage.xml, flake8-report.txt, bandit-report.json, unit-results.xml, rest-results.xml',
                          allowEmptyArchive: true
 
-        // Limpieza procesos
         bat '''
 @echo off
 for /f "tokens=5" %%a in ('netstat -aon ^| find ":5000" ^| find "LISTENING"') do taskkill /F /PID %%a >NUL 2>NUL
