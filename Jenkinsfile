@@ -15,7 +15,7 @@ pipeline {
 echo ===== INFO Agente =====
 whoami
 hostname
-echo WORKSPACE=%WORKSPACE%
+cd
 echo ======================
 '''
         checkout scm
@@ -29,9 +29,10 @@ echo ======================
 echo ===== INFO Agente =====
 whoami
 hostname
-echo WORKSPACE=%WORKSPACE%
+cd
 echo ======================
 '''
+        checkout scm
         bat "\"%PYTHON%\" -m pip install --upgrade pip"
         bat "\"%PYTHON%\" -m pip install flask pytest requests pytest-cov flake8 bandit"
       }
@@ -44,9 +45,10 @@ echo ======================
 echo ===== INFO Agente =====
 whoami
 hostname
-echo WORKSPACE=%WORKSPACE%
+cd
 echo ======================
 '''
+        checkout scm
         bat """
         \"%PYTHON%\" -m pytest test\\unit ^
           --junitxml=unit-results.xml ^
@@ -64,9 +66,10 @@ echo ======================
 echo ===== INFO Agente =====
 whoami
 hostname
-echo WORKSPACE=%WORKSPACE%
+cd
 echo ======================
 '''
+        checkout scm
         bat "\"%PYTHON%\" -m flake8 . --format=pylint --output-file=flake8-report.txt || exit /b 0"
       }
     }
@@ -78,9 +81,10 @@ echo ======================
 echo ===== INFO Agente =====
 whoami
 hostname
-echo WORKSPACE=%WORKSPACE%
+cd
 echo ======================
 '''
+        checkout scm
         bat "\"%PYTHON%\" -m bandit -r . -f json -o bandit-report.json || exit /b 0"
       }
     }
@@ -92,9 +96,10 @@ echo ======================
 echo ===== INFO Agente =====
 whoami
 hostname
-echo WORKSPACE=%WORKSPACE%
+cd
 echo ======================
 '''
+        checkout scm
 
         // Wiremock
         bat "start /B java -jar tools\\wiremock\\wiremock.jar --port 9090 --root-dir tools\\wiremock"
@@ -116,7 +121,7 @@ echo ======================
 
   post {
     always {
-      // Publicaciones
+      // Publicaciones y archivado
       node('win') {
         recordCoverage tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]
         recordIssues tools: [flake8(pattern: 'flake8-report.txt')]
