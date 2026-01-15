@@ -83,6 +83,7 @@ echo ======================
             \"%PYTHON%\" -m pytest test\\unit ^
               --junitxml=unit-results.xml ^
               --cov=app ^
+              --cov-branch ^
               --cov-report=xml:coverage.xml
             """
             junit 'unit-results.xml'
