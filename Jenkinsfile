@@ -1,5 +1,5 @@
 pipeline {
-  agent any
+  agent none
 
   environment {
     PYTHON = 'C:\\Users\\tmt-1\\AppData\\Local\\Python\\bin\\python.exe'
@@ -8,21 +8,45 @@ pipeline {
 
   stages {
 
-    stage('Get Code') {
+    stage('Get Code (win)') {
+      agent { label 'win' }
       steps {
+        bat '''
+echo ===== INFO Agente =====
+whoami
+hostname
+echo WORKSPACE=%WORKSPACE%
+echo ======================
+'''
         checkout scm
       }
     }
 
-    stage('Install Dependencies') {
+    stage('Install Dependencies (agente1)') {
+      agent { label 'agente1' }
       steps {
+        bat '''
+echo ===== INFO Agente =====
+whoami
+hostname
+echo WORKSPACE=%WORKSPACE%
+echo ======================
+'''
         bat "\"%PYTHON%\" -m pip install --upgrade pip"
         bat "\"%PYTHON%\" -m pip install flask pytest requests pytest-cov flake8 bandit"
       }
     }
 
-    stage('Unit + Coverage') {
+    stage('Unit + Coverage (agente1)') {
+      agent { label 'agente1' }
       steps {
+        bat '''
+echo ===== INFO Agente =====
+whoami
+hostname
+echo WORKSPACE=%WORKSPACE%
+echo ======================
+'''
         bat """
         \"%PYTHON%\" -m pytest test\\unit ^
           --junitxml=unit-results.xml ^
@@ -33,46 +57,58 @@ pipeline {
       }
     }
 
-    stage('Static Analysis (Flake8)') {
+    stage('Static Analysis (Flake8) (agente2)') {
+      agent { label 'agente2' }
       steps {
-        bat """
-        \"%PYTHON%\" -m flake8 . --format=pylint --output-file=flake8-report.txt || exit /b 0
-        """
+        bat '''
+echo ===== INFO Agente =====
+whoami
+hostname
+echo WORKSPACE=%WORKSPACE%
+echo ======================
+'''
+        bat "\"%PYTHON%\" -m flake8 . --format=pylint --output-file=flake8-report.txt || exit /b 0"
       }
     }
 
-    stage('Security Scan (Bandit)') {
+    stage('Security Scan (Bandit) (agente2)') {
+      agent { label 'agente2' }
       steps {
-        // Bandit en SARIF (para Warnings-NG)
-        bat """
-        \"%PYTHON%\" -m bandit -r . -f sarif -o bandit-report.sarif || exit /b 0
-        """
+        bat '''
+echo ===== INFO Agente =====
+whoami
+hostname
+echo WORKSPACE=%WORKSPACE%
+echo ======================
+'''
+        bat "\"%PYTHON%\" -m bandit -r . -f json -o bandit-report.json || exit /b 0"
       }
     }
 
-    stage('Start Wiremock (9090)') {
+    stage('Start Services + Rest + Performance (win)') {
+      agent { label 'win' }
       steps {
+        bat '''
+echo ===== INFO Agente =====
+whoami
+hostname
+echo WORKSPACE=%WORKSPACE%
+echo ======================
+'''
+
+        // Wiremock
         bat "start /B java -jar tools\\wiremock\\wiremock.jar --port 9090 --root-dir tools\\wiremock"
         sleep time: 2, unit: 'SECONDS'
-      }
-    }
 
-    stage('Start API (5000)') {
-      steps {
+        // API Flask
         bat "set FLASK_APP=app.api:api_application && start \"flask\" /B \"%PYTHON%\" -m flask run --host=127.0.0.1 --port=5000"
         sleep time: 5, unit: 'SECONDS'
-      }
-    }
 
-    stage('Rest') {
-      steps {
+        // Rest tests
         bat "\"%PYTHON%\" -m pytest test\\rest --junitxml=rest-results.xml"
         junit 'rest-results.xml'
-      }
-    }
 
-    stage('Performance (JMeter)') {
-      steps {
+        // Performance
         bat "\"%JMETER%\" -n -t test\\jmeter\\test-plan.jmx -l test\\jmeter\\results.jtl"
       }
     }
@@ -80,28 +116,22 @@ pipeline {
 
   post {
     always {
-      // --- Publicación Coverage ---
-      recordCoverage tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]
+      // Publicaciones
+      node('win') {
+        recordCoverage tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]
+        recordIssues tools: [flake8(pattern: 'flake8-report.txt')]
+        perfReport sourceDataFiles: 'test\\jmeter\\results.jtl'
 
-      // --- Publicación Warnings NG ---
-      // Flake8
-      recordIssues tools: [flake8(pattern: 'flake8-report.txt')]
-      // Bandit (SARIF)
-      recordIssues tools: [sarif(pattern: 'bandit-report.sarif')]
+        archiveArtifacts artifacts: 'test\\jmeter\\results.jtl, coverage.xml, flake8-report.txt, bandit-report.json, unit-results.xml, rest-results.xml', allowEmptyArchive: false
 
-      // --- Performance ---
-      perfReport sourceDataFiles: 'test\\jmeter\\results.jtl'
-
-      // --- Archivos ---
-      archiveArtifacts artifacts: 'test\\jmeter\\results.jtl, coverage.xml, flake8-report.txt, bandit-report.sarif, unit-results.xml, rest-results.xml', allowEmptyArchive: false
-
-      // --- Limpieza procesos ---
-      bat '''
+        // Limpieza de procesos
+        bat '''
 @echo off
 for /f "tokens=5" %%a in ('netstat -aon ^| find ":5000" ^| find "LISTENING"') do taskkill /F /PID %%a >NUL 2>NUL
 for /f "tokens=5" %%a in ('netstat -aon ^| find ":9090" ^| find "LISTENING"') do taskkill /F /PID %%a >NUL 2>NUL
 exit /b 0
 '''
+      }
     }
   }
 }
