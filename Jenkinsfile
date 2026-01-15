@@ -22,8 +22,8 @@ echo ======================
       }
     }
 
-    stage('Install Dependencies (agente1)') {
-      agent { label 'agente1' }
+    stage('Start Services (win)') {
+      agent { label 'win' }
       steps {
         bat '''
 echo ===== INFO Agente =====
@@ -33,13 +33,40 @@ cd
 echo ======================
 '''
         checkout scm
-        bat "\"%PYTHON%\" -m pip install --upgrade pip"
-        bat "\"%PYTHON%\" -m pip install flask pytest requests pytest-cov flake8 bandit"
+
+        bat "start /B java -jar tools\\wiremock\\wiremock.jar --port 9090 --root-dir tools\\wiremock"
+        sleep time: 2, unit: 'SECONDS'
+
+        bat "set FLASK_APP=app.api:api_application && start \"flask\" /B \"%PYTHON%\" -m flask run --host=127.0.0.1 --port=5000"
+        sleep time: 5, unit: 'SECONDS'
+
+        bat '''
+echo Probando WireMock...
+powershell -Command "try { (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:9090/__admin).StatusCode } catch { exit 1 }"
+echo Probando Flask...
+powershell -Command "try { (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:5000/).StatusCode } catch { exit 1 }"
+'''
       }
     }
 
     stage('Parallel Analysis & Tests') {
       parallel {
+
+        stage('Install Dependencies (agente1)') {
+          agent { label 'agente1' }
+          steps {
+            bat '''
+echo ===== INFO Agente =====
+whoami
+hostname
+cd
+echo ======================
+'''
+            checkout scm
+            bat "\"%PYTHON%\" -m pip install --upgrade pip"
+            bat "\"%PYTHON%\" -m pip install flask pytest requests pytest-cov flake8 bandit"
+          }
+        }
 
         stage('Unit + Coverage (agente1)') {
           agent { label 'agente1' }
@@ -129,19 +156,18 @@ echo ======================
   post {
     always {
       node('win') {
+        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+          recordCoverage tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]
+        }
+        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+          recordIssues tools: [flake8(pattern: 'flake8-report.txt')]
+        }
+        catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+          perfReport sourceDataFiles: 'test\\jmeter\\results.jtl'
+        }
 
-        recordCoverage tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']]
-        recordIssues tools: [flake8(pattern: 'flake8-report.txt')]
-        perfReport sourceDataFiles: 'test\\jmeter\\results.jtl'
-
-        archiveArtifacts artifacts: '''
-test\\jmeter\\results.jtl,
-coverage.xml,
-flake8-report.txt,
-bandit-report.json,
-unit-results.xml,
-rest-results.xml
-''', allowEmptyArchive: false
+        archiveArtifacts artifacts: 'test\\jmeter\\results.jtl, coverage.xml, flake8-report.txt, bandit-report.json, unit-results.xml, rest-results.xml',
+                         allowEmptyArchive: true
 
         bat '''
 @echo off
