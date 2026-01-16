@@ -1,5 +1,10 @@
 result.xml
 
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
 # JMeter
 jmeter.log
 *.jtl
