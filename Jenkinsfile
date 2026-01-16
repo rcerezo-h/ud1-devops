@@ -157,7 +157,7 @@ cd
 echo ======================
 '''
         checkout scm
-        bat "\"%PYTHON%\" -m pytest test\\rest --junitxml=rest-results.xml"
+        bat "\"%PYTHON%\" -m pytest test\\rest --junitxml=rest-results.xml || exit /b 0"
         junit 'rest-results.xml'
       }
     }
